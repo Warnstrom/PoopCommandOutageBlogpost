@@ -12,6 +12,7 @@ In PHP, I was using a custom `RateLimiter` class that connected to Redis and tra
 
 I didn't take into consideration that if the RateLimiter service would go down or not start up properly, 
 that it would mean that it's not possible to get a connection to the database which is okay(?) but not necessarily what I want for this use case
+
 ---
 
 ## The Problem
@@ -96,6 +97,65 @@ Now:
 
 This ensures the function fails gracefully if Redis fails or the DB is unreachable — no more fatal crashes.
 Final Cleanup: SQL Data Consistency
+
+## 🛠️ Attempted Refactor: DatabaseConnection Singleton
+
+While refining the error handling logic, I tried optimizing the `DatabaseConnection` class to follow the Singleton pattern. The idea was to create a single persistent database connection instance that could be reused throughout the application.
+
+### 💡 The Updated Class Concept
+
+```php
+class DatabaseConnection {
+    private static $instance = null;
+    private $conn;
+    private $servername = "";
+    private $username = "";
+    private $password = "";
+    private $dbname = "";
+
+    private function __construct() {
+        $this->conn = new mysqli(hostname: $this->servername, username: $this->username, password: $this->password, database: $this->dbname);
+        if ($this->conn->connect_error) {
+            throw new Exception("Database connection failed: " . $this->conn->connect_error);
+        }
+    }
+
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    public function getConnection() {
+        return $this->conn;
+    }
+}
+```
+What Went Wrong
+
+Despite implementing this cleaner structure, it didn’t work as expected in the live environment.
+The Issues:
+
+    Silent failure or null connection if Redis failed or the class was instantiated incorrectly.
+
+    Lack of error propagation: The connection failure wasn't bubbling up properly to the main logic.
+
+Ultimately, the class added more confusion than value in this specific use case.
+Final Decision
+
+I reverted from the new instatiation 
+
+```php
+    $conn = DatabaseConnection::getInstance()->getConnection();
+```
+
+to the simpler, direct instantiation:
+
+```php
+    $dbConnection = new DatabaseConnection();
+    $conn = $dbConnection->getConnection();
+```
 
 And the last issue that I ran into was a change I did a few weeks ago but didn't end up finishing it causing non-equal ID strcutures 
 to be stored on the database.
