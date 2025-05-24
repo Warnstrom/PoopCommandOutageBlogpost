@@ -56,32 +56,35 @@ relied on $conn (like $conn->prepare(...)) crashed with a fatal error.
 The solution was to create a temporary fix by separating the concerns. Redis is optional — a failed connection shouldn't block database access. So I rewrote the code with a fallback:
 
 ```php
-try {
     $ip = $_SERVER['REMOTE_ADDR'];
     $conn = null;
-    $allowConnection = true;
-
+    $allowConnection = true; // Default to allow
+    
     try {
+        // Attempt to use Redis for rate limiting
         $redisRateLimiter = new RateLimiter();
         $redisRateLimiter->connect();
-
+    
         if (!$redisRateLimiter->newConnection($ip)) {
             $allowConnection = false;
-            http_response_code(429);
+            http_response_code(429); // Too Many Requests
             echo "Rate limit exceeded. Try again later.";
         }
     } catch (Exception $e) {
         error_log("Redis error: " . $e->getMessage());
-        // Continue to DB connection anyway
+        // Continue to DB connection even if Redis fails
     }
-
+    
+    // Proceed to DB connection if allowed
     if ($allowConnection) {
-        $conn = DatabaseConnection::getInstance()->getConnection();
+        try {
+            $dbConnection = new DatabaseConnection();
+            $conn = $dbConnection->getConnection();
+        } catch (Exception $e) {
+            error_log("Database error: " . $e->getMessage());
+            echo "[DATABASE] A critical error occurred. Please try again later.";
+        }
     }
-} catch (Exception $e) {
-    error_log("Critical error: " . $e->getMessage());
-    echo "[DATABASE] A critical error occurred. Please try again later.";
-}
 ```
 Now:
 
