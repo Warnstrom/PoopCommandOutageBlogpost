@@ -1,6 +1,6 @@
 # From Errors to Elegance: Handling Redis Rate Limiting and Database Connections in PHP
 
-Working on high-availability PHP applications always presents one truth: every dependency you introduce can fail. This is a story of how I integrated Redis-based rate limiting into a PHP application, encountered some real-world issues, and ultimately made the system more resilient and fault-tolerant.
+Working on high-availability PHP applications always presents one truth: every dependency you introduce can fail. 
 
 ---
 
@@ -8,9 +8,10 @@ Working on high-availability PHP applications always presents one truth: every d
 
 My application collects and serves data using a MySQL database. To avoid abuse and excessive traffic, I implemented a rate limiter using Redis.
 
-
 In PHP, I was using a custom `RateLimiter` class that connected to Redis and tracked IP requests. Everything worked beautifully — **until it didn’t**.
 
+I didn't take into consideration that if the RateLimiter service would go down or not start up properly, 
+that it would mean that it's not possible to get a connection to the database which is okay(?) but not necessarily what I want for this use case
 ---
 
 ## The Problem
@@ -21,9 +22,10 @@ A critical error occurred. Please try again later.
 Fatal error: Uncaught Error: Call to a member function prepare() on null
 
 
-This wasn’t a database issue per se — it was a cascading failure caused by Redis. The `RateLimiter` failed to connect, but that failure bubbled up and **prevented** the rest of the code from connecting to the MySQL database. Essentially:
+This wasn’t a database issue per se — it was a cascading failure caused by Redis. The `RateLimiter` failed to connect, 
+but that failure bubbled up and **prevented** the rest of the code from connecting to the MySQL database. Essentially:
 
-> A **Redis issue** caused a **database outage**. Ouch.
+> A **Redis issue** caused a **database connection failure**. Ouch.
 
 ---
 
@@ -51,7 +53,7 @@ try {
 ```
 If Redis failed to connect, newConnection($ip) wouldn’t run — leading to $conn staying null. Then, any function that
 relied on $conn (like $conn->prepare(...)) crashed with a fatal error.
-🛠 The Fix: Graceful Degradation
+
 
 The solution was to create a temporary fix by separating the concerns. Redis is optional — a failed connection shouldn't block database access. So I rewrote the code with a fallback:
 
@@ -92,50 +94,34 @@ Now:
 
     Database access proceeds unless Redis explicitly blocks it.
 
-🔄 Additional Fixes: Streamlining MySQL Queries
-
-While debugging the Redis issue, I also cleaned up my getPoopStats() function:
-
-function getPoopStats($conn, $params) {
-    if ($conn === null) {
-        throw new Exception("Database connection is null in getPoopStats.");
-    }
-
-```php
-    try {
-        $stmt = $conn->prepare("SELECT ...");
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
-
-        $stmt->bind_param("ss", 
-            $params['pooper'],
-            $params['poop_streamer']
-        );
-
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_all(MYSQLI_ASSOC);
-    } catch (Exception $e) {
-        echo "Error: " . $e->getMessage();
-        return false;
-    }
-}
-```
 This ensures the function fails gracefully if Redis fails or the DB is unreachable — no more fatal crashes.
-🧹 Final Cleanup: SQL Data Consistency
+Final Cleanup: SQL Data Consistency
 
-To align with Twitch user IDs, I updated legacy UUIDs in my database:
+And the last issue that I ran into was a change I did a few weeks ago but didn't end up finishing it causing non-equal ID strcutures 
+to be stored on the database.
+
+To fix this I changed the command structure for the poop commands and 
+instead of using the channel ID provided by StreamElements I switched to the Twitch channel ID. 
+This was made possible by changning the property value we're accessing through the `channel` object from
+`channel.id` (StreamElements channel ID)
+`channel.provider_id` (Twitch channel ID)
+
+```js
+${customapi.https://warnstrom.com/API/save_poop.php
+?pooper=${sender}
+&poop_victim=${random.chatter}
+&streamer_id=${channel.provider_id}
+&api_key=} 
+```
+
+To align with proper Twitch user IDs, I updated legacy UUIDs which were provided by StreamElements in my database:
 ```sql
 UPDATE poop_records
-SET streamer_id = '102790513'
-WHERE streamer_id = '58ea5caa7ecd47499b268f15';
-
-UPDATE poop_records
-SET streamer_id = '84507934'
-WHERE streamer_id = '59ad1fe5e2a3ed1f4c447c66';
+SET streamer_id = 'new_twitch_ID'
+WHERE streamer_id = 'old_streamelements_ID';
 ```
-✅ Lessons Learned
+
+Lessons Learned
 
 Here are the takeaways from this journey:
 
@@ -149,6 +135,6 @@ Here are the takeaways from this journey:
 
     Clean your data model regularly. Fix mismatched or legacy identifiers.
 
-🔚 Final Thoughts
+Final Thoughts
 
-What started as a minor feature — a rate limiter — ended up revealing architectural weaknesses. With some thoughtful error handling and restructuring, I made the system more robust, scalable, and production-ready.
+What started as a minor feature — a rate limiter — ended up revealing architectural weaknesses. With some thoughtful error handling and restructuring, I was able to fix the problem in a fairly quick manner.
