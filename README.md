@@ -6,9 +6,7 @@ Working on high-availability PHP applications always presents one truth: every d
 
 ## The Initial Setup
 
-My application collects and serves data using a MySQL database. To avoid abuse and excessive traffic, I implemented a rate limiter using Redis. The environment runs on a DirectAdmin hosting panel with Redis accessible through a Unix socket:
-
-/usr/local/bin/redis-cli -s /home/warnstro/.redis/redis.sock
+My application collects and serves data using a MySQL database. To avoid abuse and excessive traffic, I implemented a rate limiter using Redis.
 
 
 In PHP, I was using a custom `RateLimiter` class that connected to Redis and tracked IP requests. Everything worked beautifully — **until it didn’t**.
