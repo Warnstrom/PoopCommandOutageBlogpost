@@ -17,10 +17,10 @@ that it would mean that it's not possible to get a connection to the database wh
 ## The Problem
 
 Once in production, I started getting a **critical error** message:
-
+```
 A critical error occurred. Please try again later.
 Fatal error: Uncaught Error: Call to a member function prepare() on null
-
+``` 
 
 This wasn’t a database issue per se — it was a cascading failure caused by Redis. The `RateLimiter` failed to connect, 
 but that failure bubbled up and **prevented** the rest of the code from connecting to the MySQL database. Essentially:
@@ -126,10 +126,8 @@ Lessons Learned
 Here are the takeaways from this journey:
 
     Fail gracefully. Optional services like Redis should never crash your core logic.
-
-    Use isolated try/catch blocks for fault tolerance.
-
-    Always check your DB connection before using it.
+    
+    Don't rewrite code and deploy it to production without testing it thoroughly before hand.
 
     Log intelligently. Logs helped pinpoint and solve cascading failures.
 
