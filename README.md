@@ -48,12 +48,14 @@ try {
     error_log("Critical error: " . $e->getMessage());
     echo "A critical error occurred. Please try again later.";
 }
-
-If Redis failed to connect, newConnection($ip) wouldn’t run — leading to $conn staying null. Then, any function that relied on $conn (like $conn->prepare(...)) crashed with a fatal error.
+```
+If Redis failed to connect, newConnection($ip) wouldn’t run — leading to $conn staying null. Then, any function that
+relied on $conn (like $conn->prepare(...)) crashed with a fatal error.
 🛠 The Fix: Graceful Degradation
 
-The solution was to separate concerns. Redis is optional — a failed connection shouldn't block database access. So I rewrote the code with a fallback:
+The solution was to create a temporary fix by separating the concerns. Redis is optional — a failed connection shouldn't block database access. So I rewrote the code with a fallback:
 
+```php
 try {
     $ip = $_SERVER['REMOTE_ADDR'];
     $conn = null;
@@ -80,7 +82,7 @@ try {
     error_log("Critical error: " . $e->getMessage());
     echo "[DATABASE] A critical error occurred. Please try again later.";
 }
-
+```
 Now:
 
     Redis failures are logged, but the app stays up.
@@ -96,6 +98,7 @@ function getPoopStats($conn, $params) {
         throw new Exception("Database connection is null in getPoopStats.");
     }
 
+```php
     try {
         $stmt = $conn->prepare("SELECT ...");
         if (!$stmt) {
@@ -115,12 +118,12 @@ function getPoopStats($conn, $params) {
         return false;
     }
 }
-
+```
 This ensures the function fails gracefully if Redis fails or the DB is unreachable — no more fatal crashes.
 🧹 Final Cleanup: SQL Data Consistency
 
 To align with Twitch user IDs, I updated legacy UUIDs in my database:
-
+```sql
 UPDATE poop_records
 SET streamer_id = '102790513'
 WHERE streamer_id = '58ea5caa7ecd47499b268f15';
@@ -128,7 +131,7 @@ WHERE streamer_id = '58ea5caa7ecd47499b268f15';
 UPDATE poop_records
 SET streamer_id = '84507934'
 WHERE streamer_id = '59ad1fe5e2a3ed1f4c447c66';
-
+```
 ✅ Lessons Learned
 
 Here are the takeaways from this journey:
