@@ -10,8 +10,8 @@ My application collects and serves data using a MySQL database. To avoid abuse a
 
 In PHP, I was using a custom `RateLimiter` class that connected to Redis and tracked IP requests. Everything worked beautifully — **until it didn’t**.
 
-I didn't take into consideration that if the RateLimiter service would go down or not start up properly, 
-that it would mean that it's not possible to get a connection to the database which is okay(?) but not necessarily what I want for this use case
+I initially overlooked the fact that if the RateLimiter service goes down or fails to start correctly, it would prevent any connection to the database. 
+While this might be acceptable in some scenarios, it's not the desired behavior for this particular use case.
 
 ---
 
@@ -143,36 +143,35 @@ The Issues:
 
 Ultimately, the class added more confusion than value in this specific use case.
 Final Decision
-
-I reverted from the new instatiation 
-
-```php
-    $conn = DatabaseConnection::getInstance()->getConnection();
-```
-
-to the simpler, direct instantiation:
+I reverted from using the newer instantiation method:
 
 ```php
-    $dbConnection = new DatabaseConnection();
-    $conn = $dbConnection->getConnection();
+$conn = DatabaseConnection::getInstance()->getConnection();
 ```
 
-And the last issue that I ran into was a change I did a few weeks ago but didn't end up finishing it causing non-equal ID strcutures 
-to be stored on the database.
+back to the simpler, more straightforward approach:
 
-To fix this I changed the command structure for the poop commands and 
-instead of using the channel ID provided by StreamElements I switched to the Twitch channel ID. 
-This was made possible by changning the property value we're accessing through the `channel` object from
-`channel.id` (StreamElements channel ID)
-`channel.provider_id` (Twitch channel ID)
+```php
+$dbConnection = new DatabaseConnection();
+$conn = $dbConnection->getConnection();
+```
 
+This change helped avoid some unexpected issues tied to the Singleton implementation.
+
+The final issue I encountered was related to a change I had made weeks ago but never fully implemented. This resulted in inconsistent ID formats being stored in the database.
+
+To resolve this, I updated the command structure used by the poop commands. Previously, it relied on the StreamElements channel ID (channel.id). I’ve now switched it to use the Twitch channel ID (channel.provider_id) instead, ensuring all IDs follow a consistent structure.
+
+Here’s the updated command:
 ```js
 ${customapi.https://warnstrom.com/API/save_poop.php
 ?pooper=${sender}
 &poop_victim=${random.chatter}
 &streamer_id=${channel.provider_id}
-&api_key=} 
+&api_key=}
 ```
+
+This change not only standardizes the stored IDs but also aligns better with Twitch's platform-specific identifiers, reducing the risk of mismatches across services.
 
 To align with proper Twitch user IDs, I updated legacy UUIDs which were provided by StreamElements in my database:
 ```sql
