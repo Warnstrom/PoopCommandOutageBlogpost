@@ -1,10 +1,10 @@
-# 🧠 From Errors to Elegance: Handling Redis Rate Limiting and Database Connections in PHP
+# From Errors to Elegance: Handling Redis Rate Limiting and Database Connections in PHP
 
 Working on high-availability PHP applications always presents one truth: every dependency you introduce can fail. This is a story of how I integrated Redis-based rate limiting into a PHP application, encountered some real-world issues, and ultimately made the system more resilient and fault-tolerant.
 
 ---
 
-## 🔧 The Initial Setup
+## The Initial Setup
 
 My application collects and serves data using a MySQL database. To avoid abuse and excessive traffic, I implemented a rate limiter using Redis. The environment runs on a DirectAdmin hosting panel with Redis accessible through a Unix socket:
 
@@ -15,7 +15,7 @@ In PHP, I was using a custom `RateLimiter` class that connected to Redis and tra
 
 ---
 
-## 💥 The Problem
+## The Problem
 
 Once in production, I started getting a **critical error** message:
 
@@ -29,7 +29,7 @@ This wasn’t a database issue per se — it was a cascading failure caused by R
 
 ---
 
-## 🧩 Diagnosis
+## Diagnosis
 
 Let’s break down the original logic:
 
